@@ -8,9 +8,10 @@ import json
 import sys
 from typing import List, Tuple, Optional
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 import urllib.parse
+import math
 
 
 def check_and_update_data_file(filename: str, url: str) -> None:
@@ -24,15 +25,8 @@ def check_and_update_data_file(filename: str, url: str) -> None:
     try:
         # Get current time
         # Try to use the modern timezone-aware method first
-        try:
-            from datetime import timezone
-
-            current_time = datetime.now(timezone.utc)
-            parse_format = "%Y-%m-%dT%H:%M:%S%z"
-        except ImportError:
-            # Fallback for older Python versions
-            current_time = datetime.utcnow()
-            parse_format = "%Y-%m-%dT%H:%M:%SZ"
+        current_time = datetime.now(timezone.utc)
+        parse_format = "%Y-%m-%dT%H:%M:%S%z"
 
         # Check if the file exists
         if not os.path.exists(filename):
@@ -71,11 +65,9 @@ def check_and_update_data_file(filename: str, url: str) -> None:
 
         # Convert forecast time to local time and format without date
         try:
-            from datetime import timezone as tz_module
-
             # Add UTC timezone info to the parsed time if it doesn't have it
             if forecast_time.tzinfo is None:
-                forecast_time = forecast_time.replace(tzinfo=tz_module.utc)
+                forecast_time = forecast_time.replace(tzinfo=timezone.utc)
             # Convert to local time
             forecast_local_time = forecast_time.astimezone()
             forecast_time_only = forecast_local_time.strftime("%H:%M %Z")
@@ -143,14 +135,6 @@ def find_surrounding_points_and_interpolate(
         Tuple of 4 points (lower_left, lower_right, upper_left, upper_right) and interpolated value,
         or None if not found
     """
-    import math
-
-    # Check if target point exists directly in the data (common grid point case)
-    for point in coordinates:
-        lon, lat, aurora = point[0], point[1], point[2]
-        if abs(lon - target_lon) < 1e-10 and abs(lat - target_lat) < 1e-10:
-            # Target point found exactly in data, return it as all 4 corners
-            return point, point, point, point, aurora
 
     # For regular integer grid (0-359 longitude, -90 to 90 latitude):
     # Calculate bounding coordinates mathematically if target is between grid points
@@ -158,22 +142,16 @@ def find_surrounding_points_and_interpolate(
     # Longitude calculations (0-359 with wrap-around)
     # Normalize longitude to 0-359 range first
     norm_target_lon = ((target_lon % 360) + 360) % 360
+
     lon_left = int(math.floor(norm_target_lon)) % 360
     lon_right = (lon_left + 1) % 360
 
-    # Latitude calculations (-90 to 90)
-    # Note: if target_lat is exactly 90, there is no valid lat_top > 90
-    if target_lat >= 90:
-        return None  # Can't interpolate at or above max latitude
-
     lat_bottom = int(math.floor(target_lat))
-    lat_top = lat_bottom + 1
-
-    # Boundary checks for latitude
-    if lat_top > 90:
-        return None
-    if lat_bottom < -90:
-        lat_bottom = -90  # Adjust if needed, but floor of > -90 should be fine
+    if lat_bottom == 90:
+        lat_bottom = 89
+        lat_top = 90
+    else:
+        lat_top = lat_bottom + 1
 
     # Now find the four corner points that match these coordinates
     lower_left = None
