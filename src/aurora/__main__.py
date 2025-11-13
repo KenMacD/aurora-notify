@@ -12,6 +12,10 @@ from datetime import datetime, timezone
 import os
 import urllib.parse
 import math
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 def check_and_update_data_file(filename: str, url: str) -> None:
@@ -199,8 +203,11 @@ def get_cloud_cover(lat: float, lon: float) -> Optional[int]:
     Returns:
         Cloud cover percentage or None if request fails
     """
-    # OpenWeatherMap API key from the example
+    # Get OpenWeatherMap API key from environment variable
     api_key = os.getenv("OPENWEATHERMAP_API_KEY")
+    if not api_key:
+        print("Error: OPENWEATHERMAP_API_KEY environment variable not set")
+        return None
 
     # Construct the API URL
     base_url = "https://api.openweathermap.org/data/2.5/weather"
