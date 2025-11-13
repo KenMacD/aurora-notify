@@ -24,7 +24,6 @@ def check_and_update_data_file(filename: str, url: str) -> None:
     """
     try:
         # Get current time
-        # Try to use the modern timezone-aware method first
         current_time = datetime.now(timezone.utc)
         parse_format = "%Y-%m-%dT%H:%M:%S%z"
 
@@ -48,13 +47,9 @@ def check_and_update_data_file(filename: str, url: str) -> None:
 
         # Parse the forecast time from the file
         try:
-            # Format is typically "2025-11-13T02:09:00Z"
-            if parse_format.endswith("%z"):
-                # For timezone-aware format, we need to handle the 'Z' suffix
-                forecast_time_str_tz = forecast_time_str.replace("Z", "+00:00")
-                forecast_time = datetime.strptime(forecast_time_str_tz, parse_format)
-            else:
-                forecast_time = datetime.strptime(forecast_time_str, parse_format)
+            # Format is typically "2025-11-13T02:09:00Z", so handle the 'Z' suffix by replacing with '+00:00'
+            forecast_time_str_tz = forecast_time_str.replace("Z", "+00:00")
+            forecast_time = datetime.strptime(forecast_time_str_tz, parse_format)
         except ValueError:
             print(
                 f"Could not parse Forecast Time '{forecast_time_str}' in {filename}. Downloading new data..."
@@ -63,29 +58,17 @@ def check_and_update_data_file(filename: str, url: str) -> None:
             print(f"Downloaded {filename} successfully.")
             return
 
+        # Add UTC timezone info to the parsed time if it doesn't have it
+        if forecast_time.tzinfo is None:
+            forecast_time = forecast_time.replace(tzinfo=timezone.utc)
+
         # Convert forecast time to local time and format without date
-        try:
-            # Add UTC timezone info to the parsed time if it doesn't have it
-            if forecast_time.tzinfo is None:
-                forecast_time = forecast_time.replace(tzinfo=timezone.utc)
-            # Convert to local time
-            forecast_local_time = forecast_time.astimezone()
-            forecast_time_only = forecast_local_time.strftime("%H:%M %Z")
-            if forecast_time_only.endswith(
-                " "
-            ):  # if timezone is not available, strftime might add empty space
-                forecast_time_only = forecast_local_time.strftime("%H:%M")
-        except (ValueError, AttributeError):
-            # Fallback to original format string if conversion fails
-            time_part = (
-                forecast_time_str.split("T")[1].split("Z")[0]
-                if "T" in forecast_time_str
-                else forecast_time_str
-            )
-            # Extract only hours and minutes
-            forecast_time_only = (
-                ":".join(time_part.split(":")[:2]) if ":" in time_part else time_part
-            )
+        forecast_local_time = forecast_time.astimezone()
+        forecast_time_only = forecast_local_time.strftime("%H:%M %Z")
+        if forecast_time_only.endswith(
+            " "
+        ):  # if timezone is not available, strftime might add empty space
+            forecast_time_only = forecast_local_time.strftime("%H:%M")
 
         # Check if the forecast time is in the past compared to current time
         if forecast_time < current_time:
