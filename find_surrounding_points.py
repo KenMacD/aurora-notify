@@ -1,17 +1,103 @@
 #!/usr/bin/env python3
 """
 Script to find the 4 points that make up the box around given decimal coordinates
-from the summary.json file.
+from the ovation_aurora_latest.json file.
 """
 
 import json
 import sys
 from typing import List, Tuple, Optional
+import urllib.request
+from datetime import datetime
+import os
+
+
+def check_and_update_data_file(filename: str, url: str) -> None:
+    """
+    Check if the data file is outdated and download a new version if needed.
+    
+    Args:
+        filename: Path to the local data file
+        url: URL to download the latest data from
+    """
+    try:
+        # Get current time
+        # Try to use the modern timezone-aware method first
+        try:
+            from datetime import timezone
+            current_time = datetime.now(timezone.utc)
+            parse_format = "%Y-%m-%dT%H:%M:%S%z"
+        except ImportError:
+            # Fallback for older Python versions
+            current_time = datetime.utcnow()
+            parse_format = "%Y-%m-%dT%H:%M:%SZ"
+
+        # Check if the file exists
+        if not os.path.exists(filename):
+            print(f"File {filename} not found. Downloading from {url}...")
+            urllib.request.urlretrieve(url, filename)
+            print(f"Downloaded {filename} successfully.")
+            return
+        
+        # Load the existing file to get its forecast time
+        with open(filename, 'r') as file:
+            data = json.load(file)
+        
+        forecast_time_str = data.get('Forecast Time', '')
+        if not forecast_time_str:
+            print(f"Forecast Time not found in {filename}. Downloading new data...")
+            urllib.request.urlretrieve(url, filename)
+            print(f"Downloaded {filename} successfully.")
+            return
+        
+        # Parse the forecast time from the file
+        try:
+            # Format is typically "2025-11-13T02:09:00Z"
+            if parse_format.endswith("%z"):
+                # For timezone-aware format, we need to handle the 'Z' suffix
+                forecast_time_str_tz = forecast_time_str.replace('Z', '+00:00')
+                forecast_time = datetime.strptime(forecast_time_str_tz, parse_format)
+            else:
+                forecast_time = datetime.strptime(forecast_time_str, parse_format)
+        except ValueError:
+            print(f"Could not parse Forecast Time '{forecast_time_str}' in {filename}. Downloading new data...")
+            urllib.request.urlretrieve(url, filename)
+            print(f"Downloaded {filename} successfully.")
+            return
+        
+        # Convert forecast time to local time and format without date
+        try:
+            import time
+            from datetime import timezone as tz_module
+            # Add UTC timezone info to the parsed time if it doesn't have it
+            if forecast_time.tzinfo is None:
+                forecast_time = forecast_time.replace(tzinfo=tz_module.utc)
+            # Convert to local time
+            forecast_local_time = forecast_time.astimezone()
+            forecast_time_only = forecast_local_time.strftime("%H:%M %Z")
+            if forecast_time_only.endswith(" "):  # if timezone is not available, strftime might add empty space
+                forecast_time_only = forecast_local_time.strftime("%H:%M")
+        except:
+            # Fallback to original format string if conversion fails
+            time_part = forecast_time_str.split('T')[1].split('Z')[0] if 'T' in forecast_time_str else forecast_time_str
+            # Extract only hours and minutes
+            forecast_time_only = ':'.join(time_part.split(':')[:2]) if ':' in time_part else time_part
+
+        # Check if the forecast time is in the past compared to current time
+        if forecast_time < current_time:
+            print(f"Data in {filename} is outdated (forecast was made at {forecast_time_only}). Downloading new data...")
+            urllib.request.urlretrieve(url, filename)
+            print(f"Downloaded {filename} successfully.")
+        else:
+            print(f"Data in {filename} is current (forecast is valid until {forecast_time_only}).")
+    except Exception as e:
+        print(f"Error checking or updating data file: {e}")
+        print(f"Continuing with existing file {filename}...")
 
 
 def load_coordinates(filename: str) -> List[List[float]]:
     """
-    Load coordinates from the summary.json file.
+    Load coordinates from the ovation_aurora_latest.json file.
     
     Args:
         filename: Path to the JSON file containing coordinates
@@ -135,6 +221,10 @@ def main():
     except ValueError:
         print("Error: Please provide valid decimal numbers for latitude and longitude")
         sys.exit(1)
+    
+    # Check if data file needs updating
+    data_url = "https://services.swpc.noaa.gov/json/ovation_aurora_latest.json"
+    check_and_update_data_file('ovation_aurora_latest.json', data_url)
     
     # Load coordinates from the JSON file
     coordinates = load_coordinates('ovation_aurora_latest.json')
