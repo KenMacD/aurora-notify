@@ -223,7 +223,7 @@ def get_cloud_cover(lat: float, lon: float) -> Optional[int]:
 def main():
     # Check command line arguments
     if len(sys.argv) != 3:
-        print("Usage: python find_surrounding_points.py <latitude> <longitude>")
+        print("Usage: python main.py <latitude> <longitude>")
         sys.exit(1)
 
     try:

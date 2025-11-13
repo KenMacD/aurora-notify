@@ -1,0 +1,23 @@
+[project]
+name = "aurora"
+version = "0.1.0"
+description = "Aurora chance by location"
+readme = "README.md"
+authors = [
+    { name = "Kenny MacDermid", email = "kenny@macdermid.ca" }
+]
+requires-python = ">=3.13"
+dependencies = []
+
+[project.scripts]
+aurora = "aurora:main"
+
+[build-system]
+requires = ["uv_build>=0.8.23,<0.9.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.1",
+    "ruff>=0.14.5",
+]
