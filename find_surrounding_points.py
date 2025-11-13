@@ -73,7 +73,7 @@ def check_and_update_data_file(filename: str, url: str) -> None:
         # Check if the forecast time is in the past compared to current time
         if forecast_time < current_time:
             print(
-                f"Data in {filename} is outdated (forecast was made at {forecast_time_only}). Downloading new data..."
+                f"Data in {filename} is outdated (forecast was only valid until {forecast_time_only}). Downloading new data..."
             )
             urllib.request.urlretrieve(url, filename)
             print(f"Downloaded {filename} successfully.")
