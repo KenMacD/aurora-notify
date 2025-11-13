@@ -38,7 +38,7 @@ def test_points_directly_on_grid():
     # At (50.0, 60.0), it will find the box with lower-left corner at (50, 60)
     assert lower_left == [50.0, 60.0, 0.5]
     assert lower_right == [51.0, 60.0, 0.6]  # right neighbor
-    assert upper_left == [50.0, 61.0, 0.7]   # upper neighbor
+    assert upper_left == [50.0, 61.0, 0.7]  # upper neighbor
     assert upper_right == [51.0, 61.0, 0.8]  # upper-right neighbor
     # The interpolated value will be the exact point value if it aligns with grid
     assert abs(interpolated_value - 0.5) < 1e-10  # Should be approximately 0.5
@@ -197,7 +197,7 @@ def test_latitude_upper_boundary():
     # Try to interpolate between 89 and 90 (e.g., at 89.5)
     result = find_surrounding_points_and_interpolate(coordinates, 0.5, 89.5)
     assert result is not None
-    
+
     lower_left, lower_right, upper_left, upper_right, interpolated_value = result
     # The algorithm should find 89 and 90 as bounding latitudes when target_lat is between 89 and 90
     assert lower_left == [0.0, 89.0, 0.5]
@@ -472,42 +472,9 @@ def test_get_cloud_cover():
         assert result is None
 
 
-def run_tests():
-    """Run all tests and report results"""
-    test_functions = [
-        test_points_directly_on_grid,
-        test_points_on_grid_line,
-        test_points_neither_on_grid_line,
-        test_longitude_wraparound,
-        test_latitude_upper_boundary,
-        test_latitude_lower_boundary,
-        test_exact_grid_point_interpolation,
-        test_interpolation_formula,
-        test_missing_corner_points,
-        test_load_coordinates,
-        test_longitude_normalization,
-        test_check_and_update_data_file,
-        test_get_cloud_cover,
-    ]
-
-    passed = 0
-    failed = 0
-
-    for test_func in test_functions:
-        try:
-            test_func()
-            print(f"✓ {test_func.__name__} passed")
-            passed += 1
-        except Exception as e:
-            print(f"✗ {test_func.__name__} failed: {str(e)}")
-            failed += 1
-
-    print(f"\nTest Results: {passed} passed, {failed} failed")
-    return failed == 0
-
-
 if __name__ == "__main__":
-    success = run_tests()
-    if not success:
-        sys.exit(1)
-    print("All tests passed!")
+    import pytest
+    import sys
+
+    # Run pytest on this file
+    sys.exit(pytest.main([__file__]))
