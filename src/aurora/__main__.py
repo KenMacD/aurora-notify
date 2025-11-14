@@ -20,8 +20,8 @@ load_dotenv()
 
 # Constants for aurora visibility conditions (can be adjusted)
 NTFY_TOPIC = os.getenv(
-    "NTFY_TOPIC", "aurora-alerts"
-)  # Default to 'aurora-alerts' if not set
+    "NTFY_TOPIC", None
+)  # Default to None if not set, in which case notifications are skipped
 NTFY_URL = os.getenv(
     "NTFY_URL", "https://ntfy.sh"
 )  # Default to public ntfy server if not set
@@ -339,6 +339,10 @@ def send_ntfy_notification(
         target_lat: Target latitude
         target_lon: Target longitude
     """
+    # Check if notifications are disabled (NTFY_TOPIC is None)
+    if NTFY_TOPIC is None:
+        return
+
     # Only send notification if weather data was retrieved (meaning aurora value met threshold)
     # and if visibility conditions are good
     if weather_data is None or not is_good_aurora_visibility(
