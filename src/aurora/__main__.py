@@ -370,26 +370,46 @@ def send_ntfy_notification(
 
 
 def main():
-    # Check command line arguments
-    if len(sys.argv) != 3:
-        print("Usage: python main.py <latitude> <longitude>")
+    # Check command line arguments first, then environment variables
+    if len(sys.argv) == 3:
+        # Using command line arguments
+        try:
+            target_lat = float(sys.argv[1])
+            target_lon = float(sys.argv[2])
+        except ValueError:
+            print(
+                "Error: Please provide valid decimal numbers for latitude and longitude"
+            )
+            sys.exit(1)
+    else:
+        # Try environment variables
+        env_lat = os.getenv("AURORA_LATITUDE")
+        env_lon = os.getenv("AURORA_LONGITUDE")
+
+        if env_lat is not None and env_lon is not None:
+            try:
+                target_lat = float(env_lat)
+                target_lon = float(env_lon)
+            except ValueError:
+                print(
+                    "Error: Environment variables AURORA_LATITUDE and AURORA_LONGITUDE must be valid decimal numbers"
+                )
+                sys.exit(1)
+        else:
+            print(f"Usage: {sys.argv[0]} <latitude> <longitude>")
+            print(
+                "   Or set environment variables AURORA_LATITUDE and AURORA_LONGITUDE"
+            )
+            sys.exit(1)
+
+    # Validate longitude is in -180 to +180 range
+    if target_lon < -180 or target_lon > 180:
+        print("Error: Longitude must be between -180 and +180 degrees")
         sys.exit(1)
 
-    try:
-        target_lat = float(sys.argv[1])
-        target_lon = float(sys.argv[2])
-
-        # Validate longitude is in -180 to +180 range
-        if target_lon < -180 or target_lon > 180:
-            print("Error: Longitude must be between -180 and +180 degrees")
-            sys.exit(1)
-
-        # Validate latitude is in -90 to +90 range
-        if target_lat < -90 or target_lat > 90:
-            print("Error: Latitude must be between -90 and +90 degrees")
-            sys.exit(1)
-    except ValueError:
-        print("Error: Please provide valid decimal numbers for latitude and longitude")
+    # Validate latitude is in -90 to +90 range
+    if target_lat < -90 or target_lat > 90:
+        print("Error: Latitude must be between -90 and +90 degrees")
         sys.exit(1)
 
     # Check if data file needs updating
@@ -419,8 +439,8 @@ def main():
     lower_left, lower_right, upper_left, upper_right, interpolated_value = result
 
     # Store original coordinates for output
-    original_lat = float(sys.argv[1])  # Get the original latitude from command line
-    original_lon = float(sys.argv[2])  # Get the original longitude from command line
+    original_lat = target_lat  # Use the latitude from either args or env
+    original_lon = target_lon  # Use the longitude from either args or env
 
     # Get weather data using original longitude
     weather_data = get_weather_data(original_lat, original_lon)

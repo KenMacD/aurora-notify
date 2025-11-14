@@ -43,10 +43,23 @@ Using uv with project script (recommended):
 uv run aurora <latitude> <longitude>
 ```
 
-### Example
+Alternatively, you can set the coordinates using environment variables:
+```bash
+export AURORA_LATITUDE=65
+export AURORA_LONGITUDE=-147
+uv run aurora
+```
 
+### Examples
+
+With command line arguments:
 ```bash
 uv run aurora 65 -147
+```
+
+With environment variables:
+```bash
+AURORA_LATITUDE=65 AURORA_LONGITUDE=-147 uv run aurora
 ```
 
 This will output the forecast, viewing conditions, and send a notification if conditions are met:
