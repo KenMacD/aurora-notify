@@ -19,6 +19,8 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
+AURORA_DATA_URL = "https://services.swpc.noaa.gov/json/ovation_aurora_latest.json"
+
 # Constants for aurora visibility conditions (can be adjusted)
 NTFY_TOPIC = os.getenv(
     "NTFY_TOPIC", None
@@ -403,8 +405,7 @@ def main():
         sys.exit(1)
 
     # Check if data file needs updating
-    data_url = "https://services.swpc.noaa.gov/json/ovation_aurora_latest.json"
-    check_and_update_data_file("ovation_aurora_latest.json", data_url)
+    check_and_update_data_file("ovation_aurora_latest.json", AURORA_DATA_URL)
 
     # Load coordinates from the JSON file
     coordinates = load_coordinates("ovation_aurora_latest.json")
