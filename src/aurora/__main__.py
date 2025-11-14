@@ -308,6 +308,62 @@ def is_good_aurora_visibility(
     return True
 
 
+class CoordinateError(Exception):
+    """Exception raised for invalid latitude or longitude values."""
+
+    pass
+
+
+def get_coordinates_from_args_or_env() -> Tuple[float, float]:
+    """
+    Get latitude and longitude from command line arguments or environment variables.
+
+    Returns:
+        Tuple of (latitude, longitude) as floats
+
+    Raises:
+        CoordinateError: If coordinates are not provided or invalid
+    """
+    # Check command line arguments first, then environment variables
+    if len(sys.argv) == 3:
+        # Using command line arguments
+        try:
+            target_lat = float(sys.argv[1])
+            target_lon = float(sys.argv[2])
+        except ValueError:
+            raise CoordinateError(
+                "Error: Please provide valid decimal numbers for latitude and longitude"
+            )
+    else:
+        # Try environment variables
+        env_lat = os.getenv("AURORA_LATITUDE")
+        env_lon = os.getenv("AURORA_LONGITUDE")
+
+        if env_lat is not None and env_lon is not None:
+            try:
+                target_lat = float(env_lat)
+                target_lon = float(env_lon)
+            except ValueError:
+                raise CoordinateError(
+                    "Error: Environment variables AURORA_LATITUDE and AURORA_LONGITUDE must be valid decimal numbers"
+                )
+        else:
+            raise CoordinateError(
+                f"Usage: {sys.argv[0]} <latitude> <longitude>\n"
+                "   Or set environment variables AURORA_LATITUDE and AURORA_LONGITUDE"
+            )
+
+    # Validate longitude is in -180 to +180 range
+    if target_lon < -180 or target_lon > 180:
+        raise CoordinateError("Error: Longitude must be between -180 and +180 degrees")
+
+    # Validate latitude is in -90 to +90 range
+    if target_lat < -90 or target_lat > 90:
+        raise CoordinateError("Error: Latitude must be between -90 and +90 degrees")
+
+    return target_lat, target_lon
+
+
 def send_ntfy_notification(
     interpolated_value: float,
     weather_data: Optional[dict],
@@ -362,46 +418,10 @@ def send_ntfy_notification(
 
 
 def main():
-    # Check command line arguments first, then environment variables
-    if len(sys.argv) == 3:
-        # Using command line arguments
-        try:
-            target_lat = float(sys.argv[1])
-            target_lon = float(sys.argv[2])
-        except ValueError:
-            print(
-                "Error: Please provide valid decimal numbers for latitude and longitude"
-            )
-            sys.exit(1)
-    else:
-        # Try environment variables
-        env_lat = os.getenv("AURORA_LATITUDE")
-        env_lon = os.getenv("AURORA_LONGITUDE")
-
-        if env_lat is not None and env_lon is not None:
-            try:
-                target_lat = float(env_lat)
-                target_lon = float(env_lon)
-            except ValueError:
-                print(
-                    "Error: Environment variables AURORA_LATITUDE and AURORA_LONGITUDE must be valid decimal numbers"
-                )
-                sys.exit(1)
-        else:
-            print(f"Usage: {sys.argv[0]} <latitude> <longitude>")
-            print(
-                "   Or set environment variables AURORA_LATITUDE and AURORA_LONGITUDE"
-            )
-            sys.exit(1)
-
-    # Validate longitude is in -180 to +180 range
-    if target_lon < -180 or target_lon > 180:
-        print("Error: Longitude must be between -180 and +180 degrees")
-        sys.exit(1)
-
-    # Validate latitude is in -90 to +90 range
-    if target_lat < -90 or target_lat > 90:
-        print("Error: Latitude must be between -90 and +90 degrees")
+    try:
+        target_lat, target_lon = get_coordinates_from_args_or_env()
+    except CoordinateError as e:
+        print(str(e))
         sys.exit(1)
 
     # Check if data file needs updating
