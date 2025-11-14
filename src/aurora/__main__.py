@@ -192,16 +192,50 @@ def find_surrounding_points_and_interpolate(
     return lower_left, lower_right, upper_left, upper_right, interpolated_value
 
 
-def get_cloud_cover(lat: float, lon: float) -> Optional[int]:
+def is_nighttime(sunrise: int, sunset: int, current_time: int) -> bool:
     """
-    Get cloud cover percentage from OpenWeatherMap API.
+    Determine if it's currently nighttime based on sunrise and sunset times.
+
+    Args:
+        sunrise: Unix timestamp for sunrise (for the current day)
+        sunset: Unix timestamp for sunset (for the current day)
+        current_time: Current Unix timestamp
+
+    Returns:
+        True if it's nighttime (between sunset and sunrise), False otherwise
+    """
+    # The OpenWeatherMap API provides sunrise and sunset for the current day.
+    # If current time is after sunset and before tomorrow's sunrise, it's nighttime.
+    # If current time is before sunset and after today's sunrise, it's daytime.
+
+    # Check if current time is after today's sunset
+    if current_time >= sunset:
+        # If so, it's nighttime until tomorrow's sunrise
+        tomorrow_sunrise = sunrise + 86400  # Add 24 hours to get next day's sunrise
+        if current_time < tomorrow_sunrise:
+            return True
+        # If current time is past tomorrow's sunrise, then sunrise/sunset values
+        # might be for a different timezone context, so we'll default to the other checks
+
+    # Check if current time is before today's sunrise (early morning, still night)
+    if current_time < sunrise:
+        # It's nighttime before today's sunrise
+        return True
+
+    # Otherwise, it's daytime (between sunrise and sunset)
+    return False
+
+
+def get_weather_data(lat: float, lon: float) -> Optional[dict]:
+    """
+    Get weather data from OpenWeatherMap API including cloud cover, sunrise, and sunset times.
 
     Args:
         lat: Latitude
         lon: Longitude
 
     Returns:
-        Cloud cover percentage or None if request fails
+        Dictionary containing cloud cover, sunrise, sunset, and current time, or None if request fails
     """
     # Get OpenWeatherMap API key from environment variable
     api_key = os.getenv("OPENWEATHERMAP_API_KEY")
@@ -219,11 +253,16 @@ def get_cloud_cover(lat: float, lon: float) -> Optional[int]:
         response = urllib.request.urlopen(url)
         data = json.loads(response.read().decode())
 
-        # Extract cloud cover percentage
-        cloud_cover = data.get("clouds", {}).get("all")
-        return cloud_cover
+        # Extract cloud cover percentage, sunrise, sunset, and current time
+        weather_info = {
+            "cloud_cover": data.get("clouds", {}).get("all"),
+            "sunrise": data.get("sys", {}).get("sunrise"),
+            "sunset": data.get("sys", {}).get("sunset"),
+            "current_time": data.get("dt"),
+        }
+        return weather_info
     except Exception as e:
-        print(f"Error fetching cloud cover data: {e}")
+        print(f"Error fetching weather data: {e}")
         return None
 
 
@@ -280,8 +319,8 @@ def main():
     original_lat = float(sys.argv[1])  # Get the original latitude from command line
     original_lon = float(sys.argv[2])  # Get the original longitude from command line
 
-    # Get cloud cover data using original longitude
-    cloud_cover = get_cloud_cover(original_lat, original_lon)
+    # Get weather data using original longitude
+    weather_data = get_weather_data(original_lat, original_lon)
 
     print(f"Target coordinates: ({original_lat}, {original_lon})")
     print("Surrounding points:")
@@ -305,11 +344,45 @@ def main():
     )
     print(f"Interpolated aurora value at target coordinates: {interpolated_value:.2f}")
 
-    if cloud_cover is not None:
-        print(f"Cloud cover at target location: {cloud_cover}%")
-        print(f"Visibility for aurora: {100 - cloud_cover}% (clear of clouds)")
+    # Determine aurora visibility based on weather conditions
+    if weather_data is not None:
+        cloud_cover = weather_data.get("cloud_cover")
+        sunrise = weather_data.get("sunrise")
+        sunset = weather_data.get("sunset")
+        current_time = weather_data.get("current_time")
+
+        if cloud_cover is not None:
+            print(f"Cloud cover at target location: {cloud_cover}%")
+        else:
+            print("Could not retrieve cloud cover data")
+
+        if sunrise is not None and sunset is not None and current_time is not None:
+            is_dark = is_nighttime(sunrise, sunset, current_time)
+            print(
+                f"Time conditions for aurora: {'Nighttime (dark enough)' if is_dark else 'Daytime (too bright)'}"
+            )
+
+            # Determine if aurora is likely visible
+            if is_dark and cloud_cover is not None:
+                visibility_percentage = 100 - cloud_cover
+                if visibility_percentage > 50:
+                    print(f"Aurora visibility: Good ({visibility_percentage}% clear)")
+                elif 20 < visibility_percentage <= 50:
+                    print(
+                        f"Aurora visibility: Moderate ({visibility_percentage}% clear)"
+                    )
+                elif visibility_percentage <= 20:
+                    print(f"Aurora visibility: Poor ({visibility_percentage}% clear)")
+                else:
+                    print("Aurora visibility: Uncertain due to cloud cover")
+            elif not is_dark:
+                print("Aurora visibility: Poor (not dark enough - daytime conditions)")
+            else:
+                print("Aurora visibility: Uncertain due to weather data")
+        else:
+            print("Could not retrieve sunrise/sunset times for nighttime check")
     else:
-        print("Could not retrieve cloud cover data")
+        print("Could not retrieve weather data")
 
 
 if __name__ == "__main__":

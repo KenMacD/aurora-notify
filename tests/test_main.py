@@ -8,8 +8,6 @@ from unittest.mock import patch, mock_open
 from aurora.__main__ import (
     find_surrounding_points_and_interpolate,
     load_coordinates,
-    check_and_update_data_file,
-    get_cloud_cover,
 )
 
 
@@ -370,6 +368,7 @@ def test_check_and_update_data_file():
     import json
     from datetime import datetime, timedelta
     from unittest.mock import patch, mock_open
+    from aurora.__main__ import check_and_update_data_file
 
     # Create a mock outdated data file
     outdated_data = {
@@ -383,8 +382,6 @@ def test_check_and_update_data_file():
     with patch("os.path.exists", return_value=False):
         with patch("urllib.request.urlretrieve") as mock_retrieve:
             # This should trigger download since file doesn't exist
-            from aurora.__main__ import check_and_update_data_file
-
             check_and_update_data_file(
                 "dummy_file.json", "http://example.com/data.json"
             )
@@ -395,8 +392,6 @@ def test_check_and_update_data_file():
         with patch("builtins.open", mock_open(read_data=json.dumps(outdated_data))):
             with patch("urllib.request.urlretrieve") as mock_retrieve:
                 with patch("json.load", return_value=outdated_data):
-                    from aurora.__main__ import check_and_update_data_file
-
                     check_and_update_data_file(
                         "dummy_file.json", "http://example.com/data.json"
                     )
@@ -413,11 +408,6 @@ def test_check_and_update_data_file():
         with patch("builtins.open", mock_open(read_data=json.dumps(current_data))):
             with patch("urllib.request.urlretrieve") as mock_retrieve:
                 with patch("json.load", return_value=current_data):
-                    from aurora.__main__ import (
-                        check_and_update_data_file,
-                        datetime,
-                    )
-
                     # We need to patch datetime in the right location
                     with patch("aurora.__main__.datetime") as mock_datetime:
                         mock_datetime.now.return_value = current_time
@@ -431,26 +421,38 @@ def test_check_and_update_data_file():
                         mock_retrieve.assert_not_called()
 
 
-def test_get_cloud_cover():
-    """Test get_cloud_cover function with mocked API response"""
+def test_get_weather_data():
+    """Test get_weather_data function with mocked API response"""
     from unittest.mock import patch, Mock
     import json
+    from aurora.__main__ import get_weather_data
 
     # Mock successful API response
-    mock_response_data = {"clouds": {"all": 75}}
+    mock_response_data = {
+        "clouds": {"all": 75},
+        "sys": {"sunrise": 1234567890, "sunset": 1234599999},
+        "dt": 1234588888,
+    }
 
     with patch("urllib.request.urlopen") as mock_urlopen:
         mock_response = Mock()
         mock_response.read.return_value = json.dumps(mock_response_data).encode("utf-8")
         mock_urlopen.return_value = mock_response
 
-        from aurora.__main__ import get_cloud_cover
-
-        result = get_cloud_cover(40.0, -74.0)
-        assert result == 75
+        result = get_weather_data(40.0, -74.0)
+        assert result == {
+            "cloud_cover": 75,
+            "sunrise": 1234567890,
+            "sunset": 1234599999,
+            "current_time": 1234588888,
+        }
 
     # Test when API returns no cloud data
-    mock_response_data_no_clouds = {"weather": "clear"}
+    mock_response_data_no_clouds = {
+        "weather": "clear",
+        "sys": {"sunrise": 1234567890, "sunset": 1234599999},
+        "dt": 1234588888,
+    }
 
     with patch("urllib.request.urlopen") as mock_urlopen:
         mock_response = Mock()
@@ -459,17 +461,40 @@ def test_get_cloud_cover():
         ).encode("utf-8")
         mock_urlopen.return_value = mock_response
 
-        from aurora.__main__ import get_cloud_cover
-
-        result = get_cloud_cover(40.0, -74.0)
-        assert result is None
+        result = get_weather_data(40.0, -74.0)
+        assert result["cloud_cover"] is None
+        assert result["sunrise"] == 1234567890
+        assert result["sunset"] == 1234599999
+        assert result["current_time"] == 1234588888
 
     # Test when API request fails
     with patch("urllib.request.urlopen", side_effect=Exception("Network error")):
-        from aurora.__main__ import get_cloud_cover
-
-        result = get_cloud_cover(40.0, -74.0)
+        result = get_weather_data(40.0, -74.0)
         assert result is None
+
+
+def test_is_nighttime():
+    """Test is_nighttime function with various scenarios"""
+    from aurora.__main__ import is_nighttime
+
+    # Test case from the example provided by user:
+    # When current time is between sunrise and sunset, it should be daytime (False)
+    sunrise = 1726636384
+    sunset = 1726680975
+    current_time = 1726660758  # Between sunrise and sunset
+
+    result = is_nighttime(sunrise, sunset, current_time)
+    assert result is False  # Daytime
+
+    # Test when current time is after sunset but before next day's sunrise (nighttime)
+    current_time_after_sunset = 1726685000  # After sunset
+    result2 = is_nighttime(sunrise, sunset, current_time_after_sunset)
+    assert result2 is True  # Nighttime
+
+    # Test when current time is before sunrise (nighttime, early morning)
+    current_time_before_sunrise = 1726630000  # Before sunrise
+    result3 = is_nighttime(sunrise, sunset, current_time_before_sunrise)
+    assert result3 is True  # Nighttime
 
 
 if __name__ == "__main__":
