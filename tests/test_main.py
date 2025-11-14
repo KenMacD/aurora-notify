@@ -8,6 +8,12 @@ from unittest.mock import patch, mock_open
 from aurora.__main__ import (
     find_surrounding_points_and_interpolate,
     load_coordinates,
+    is_nighttime,
+    get_weather_data,
+    is_good_aurora_visibility,
+    send_ntfy_notification,
+    MAX_CLOUD_COVER,
+    MIN_AURORA_THRESHOLD,
 )
 
 
@@ -570,64 +576,23 @@ def test_send_ntfy_notification():
     from aurora.__main__ import send_ntfy_notification
 
     interpolated_value = 70.0
-    weather_data = {
-        "cloud_cover": 20,
-        "sunrise": 1234567890,
-        "sunset": 1234599999,
-        "current_time": 1234588888,
-    }
-    target_lat = 65.0
-    target_lon = -147.0
+    cloud_cover = 20
 
     # Mock NTFY_TOPIC to have a valid value (not None) for this test
     with patch("aurora.__main__.NTFY_TOPIC", "test-topic"):
-        # Mock the is_good_aurora_visibility function to return True
-        with patch("aurora.__main__.is_good_aurora_visibility", return_value=True):
-            # Mock requests.post to avoid actually sending notifications
-            with patch("aurora.__main__.requests.post") as mock_post:
-                mock_post.return_value.status_code = 200
-
-                send_ntfy_notification(
-                    interpolated_value, weather_data, target_lat, target_lon
-                )
-
-                # Verify that requests.post was called
-                assert mock_post.called
-
-        # Test when conditions are not good
-        with patch("aurora.__main__.is_good_aurora_visibility", return_value=False):
-            with patch("aurora.__main__.requests.post") as mock_post:
-                send_ntfy_notification(
-                    interpolated_value, weather_data, target_lat, target_lon
-                )
-
-                # Verify that requests.post was NOT called
-                assert not mock_post.called
-
-
-def test_send_ntfy_notification_with_none_topic():
-    """Test the send_ntfy_notification function when NTFY_TOPIC is None"""
-    from unittest.mock import patch, MagicMock
-    from aurora.__main__ import send_ntfy_notification
-
-    interpolated_value = 70.0
-    weather_data = {
-        "cloud_cover": 20,
-        "sunrise": 1234567890,
-        "sunset": 1234599999,
-        "current_time": 1234588888,
-    }
-    target_lat = 65.0
-    target_lon = -147.0
-
-    # Mock the NTFY_TOPIC to be None
-    with patch("aurora.__main__.NTFY_TOPIC", None):
-        # Mock requests.post to verify it's not called when topic is None
+        # Mock requests.post to avoid actually sending notifications
         with patch("aurora.__main__.requests.post") as mock_post:
-            # This should return early without making any requests
-            send_ntfy_notification(
-                interpolated_value, weather_data, target_lat, target_lon
-            )
+            mock_post.return_value.status_code = 200
+
+            send_ntfy_notification(interpolated_value, cloud_cover)
+
+            # Verify that requests.post was called
+            assert mock_post.called
+
+    # Test when NTFY_TOPIC is None
+    with patch("aurora.__main__.NTFY_TOPIC", None):
+        with patch("aurora.__main__.requests.post") as mock_post:
+            send_ntfy_notification(interpolated_value, cloud_cover)
 
             # Verify that requests.post was NOT called when NTFY_TOPIC is None
             assert not mock_post.called
