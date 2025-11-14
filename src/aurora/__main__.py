@@ -339,7 +339,11 @@ def send_ntfy_notification(
         target_lat: Target latitude
         target_lon: Target longitude
     """
-    if not is_good_aurora_visibility(interpolated_value, weather_data):
+    # Only send notification if weather data was retrieved (meaning aurora value met threshold)
+    # and if visibility conditions are good
+    if weather_data is None or not is_good_aurora_visibility(
+        interpolated_value, weather_data
+    ):
         return
 
     # Prepare the notification message
@@ -442,9 +446,6 @@ def main():
     original_lat = target_lat  # Use the latitude from either args or env
     original_lon = target_lon  # Use the longitude from either args or env
 
-    # Get weather data using original longitude
-    weather_data = get_weather_data(original_lat, original_lon)
-
     print(f"Target coordinates: ({original_lat}, {original_lon})")
     print("Surrounding points:")
     # Convert longitude back to -180 to +180 range for display
@@ -466,6 +467,20 @@ def main():
         f"  Upper right:    ({upper_right[1]}, {ur_lon_display}) -> Aurora: {upper_right[2]}"
     )
     print(f"Interpolated aurora value at target coordinates: {interpolated_value:.2f}")
+
+    # Check if the aurora value is above the threshold to warrant a weather check
+    # Only fetch weather data if aurora value is high enough to potentially make viewing worthwhile
+    weather_data = None
+    if interpolated_value >= MIN_AURORA_THRESHOLD:
+        print(
+            f"Aurora value ({interpolated_value:.2f}) is above threshold ({MIN_AURORA_THRESHOLD}), checking weather conditions..."
+        )
+        # Get weather data using original longitude
+        weather_data = get_weather_data(original_lat, original_lon)
+    else:
+        print(
+            f"Aurora value ({interpolated_value:.2f}) is below threshold ({MIN_AURORA_THRESHOLD}), skipping weather check to reduce API calls."
+        )
 
     # Determine aurora visibility based on weather conditions
     if weather_data is not None:
@@ -505,7 +520,7 @@ def main():
         else:
             print("Could not retrieve sunrise/sunset times for nighttime check")
     else:
-        print("Could not retrieve weather data")
+        print("Weather data not retrieved due to low aurora value.")
 
     # Send ntfy notification if aurora visibility conditions are good
     send_ntfy_notification(interpolated_value, weather_data, original_lat, original_lon)
