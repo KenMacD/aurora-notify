@@ -497,6 +497,112 @@ def test_is_nighttime():
     assert result3 is True  # Nighttime
 
 
+def test_is_good_aurora_visibility():
+    """Test the is_good_aurora_visibility function with various scenarios"""
+    from unittest.mock import patch
+    from aurora.__main__ import is_good_aurora_visibility
+
+    # Test case 1: Good conditions
+    interpolated_value = 70.0
+    weather_data = {
+        "cloud_cover": 20,
+        "sunrise": 1234567890,
+        "sunset": 1234599999,
+        "current_time": 1234588888,
+    }
+
+    # Mock is_nighttime to return True
+    with patch("aurora.__main__.is_nighttime", return_value=True):
+        result = is_good_aurora_visibility(interpolated_value, weather_data)
+        assert result is True
+
+    # Test case 2: Poor conditions - daytime
+    with patch("aurora.__main__.is_nighttime", return_value=False):
+        result = is_good_aurora_visibility(interpolated_value, weather_data)
+        assert result is False
+
+    # Test case 3: Poor conditions - too cloudy
+    weather_data_cloudy = {
+        "cloud_cover": 50,  # Above default threshold of 30
+        "sunrise": 1234567890,
+        "sunset": 1234599999,
+        "current_time": 1234588888,
+    }
+    with patch("aurora.__main__.is_nighttime", return_value=True):
+        result = is_good_aurora_visibility(interpolated_value, weather_data_cloudy)
+        assert result is False
+
+    # Test case 4: Poor conditions - aurora too weak
+    low_interpolated_value = 30.0  # Below default threshold of 50
+    weather_data_good = {
+        "cloud_cover": 10,
+        "sunrise": 1234567890,
+        "sunset": 1234599999,
+        "current_time": 1234588888,
+    }
+    with patch("aurora.__main__.is_nighttime", return_value=True):
+        result = is_good_aurora_visibility(low_interpolated_value, weather_data_good)
+        assert result is False
+
+    # Test case 5: Missing weather data
+    result = is_good_aurora_visibility(interpolated_value, None)
+    assert result is False
+
+    # Test case 6: Missing cloud cover
+    weather_data_no_cloud = {
+        "sunrise": 1234567890,
+        "sunset": 1234599999,
+        "current_time": 1234588888,
+    }
+    with patch("aurora.__main__.is_nighttime", return_value=True):
+        result = is_good_aurora_visibility(interpolated_value, weather_data_no_cloud)
+        assert result is False
+
+    # Test case 7: Missing sunrise/sunset times
+    weather_data_no_sun = {"cloud_cover": 20, "current_time": 1234588888}
+    result = is_good_aurora_visibility(interpolated_value, weather_data_no_sun)
+    assert result is False
+
+
+def test_send_ntfy_notification():
+    """Test the send_ntfy_notification function"""
+    from unittest.mock import patch
+    from aurora.__main__ import send_ntfy_notification
+
+    interpolated_value = 70.0
+    weather_data = {
+        "cloud_cover": 20,
+        "sunrise": 1234567890,
+        "sunset": 1234599999,
+        "current_time": 1234588888,
+    }
+    target_lat = 65.0
+    target_lon = -147.0
+
+    # Mock the is_good_aurora_visibility function to return True
+    with patch("aurora.__main__.is_good_aurora_visibility", return_value=True):
+        # Mock requests.post to avoid actually sending notifications
+        with patch("aurora.__main__.requests.post") as mock_post:
+            mock_post.return_value.status_code = 200
+
+            send_ntfy_notification(
+                interpolated_value, weather_data, target_lat, target_lon
+            )
+
+            # Verify that requests.post was called
+            assert mock_post.called
+
+    # Test when conditions are not good
+    with patch("aurora.__main__.is_good_aurora_visibility", return_value=False):
+        with patch("aurora.__main__.requests.post") as mock_post:
+            send_ntfy_notification(
+                interpolated_value, weather_data, target_lat, target_lon
+            )
+
+            # Verify that requests.post was NOT called
+            assert not mock_post.called
+
+
 if __name__ == "__main__":
     import pytest
     import sys

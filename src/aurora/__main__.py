@@ -12,10 +12,25 @@ from datetime import datetime, timezone
 import os
 import urllib.parse
 import math
+import requests
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Constants for aurora visibility conditions (can be adjusted)
+NTFY_TOPIC = os.getenv(
+    "NTFY_TOPIC", "aurora-alerts"
+)  # Default to 'aurora-alerts' if not set
+NTFY_URL = os.getenv(
+    "NTFY_URL", "https://ntfy.sh"
+)  # Default to public ntfy server if not set
+MIN_AURORA_THRESHOLD = float(
+    os.getenv("MIN_AURORA_THRESHOLD", "50.0")
+)  # Minimum aurora value to trigger notification
+MAX_CLOUD_COVER = int(
+    os.getenv("MAX_CLOUD_COVER", "30")
+)  # Maximum cloud cover percentage for good visibility
 
 
 def check_and_update_data_file(filename: str, url: str) -> None:
@@ -266,6 +281,94 @@ def get_weather_data(lat: float, lon: float) -> Optional[dict]:
         return None
 
 
+def is_good_aurora_visibility(
+    interpolated_value: float, weather_data: Optional[dict]
+) -> bool:
+    """
+    Determine if aurora visibility conditions are good based on interpolated value,
+    cloud cover, and time of day.
+
+    Args:
+        interpolated_value: The interpolated aurora value at target coordinates
+        weather_data: Dictionary containing cloud cover, sunrise, sunset, and current time
+
+    Returns:
+        True if conditions are good for aurora viewing, False otherwise
+    """
+    if weather_data is None:
+        return False
+
+    cloud_cover = weather_data.get("cloud_cover")
+    sunrise = weather_data.get("sunrise")
+    sunset = weather_data.get("sunset")
+    current_time = weather_data.get("current_time")
+
+    # Check if it's nighttime
+    if sunrise is None or sunset is None or current_time is None:
+        return False
+
+    is_dark = is_nighttime(sunrise, sunset, current_time)
+
+    # Check if aurora value is above threshold and it's dark enough
+    if not is_dark:
+        return False
+
+    # Check if cloud cover is acceptable
+    if cloud_cover is None or cloud_cover > MAX_CLOUD_COVER:
+        return False
+
+    # Check if aurora value is above minimum threshold
+    if interpolated_value < MIN_AURORA_THRESHOLD:
+        return False
+
+    return True
+
+
+def send_ntfy_notification(
+    interpolated_value: float,
+    weather_data: Optional[dict],
+    target_lat: float,
+    target_lon: float,
+) -> None:
+    """
+    Send notification to ntfy if aurora visibility conditions are good.
+
+    Args:
+        interpolated_value: The interpolated aurora value at target coordinates
+        weather_data: Dictionary containing cloud cover, sunrise, sunset, and current time
+        target_lat: Target latitude
+        target_lon: Target longitude
+    """
+    if not is_good_aurora_visibility(interpolated_value, weather_data):
+        return
+
+    # Prepare the notification message
+    cloud_cover = weather_data.get("cloud_cover", "unknown")
+    visibility_percentage = 100 - cloud_cover if cloud_cover is not None else "unknown"
+
+    message = f"Aurora alert! High chance of aurora visibility at ({target_lat}, {target_lon})\n"
+    message += f"Aurora value: {interpolated_value:.2f}\n"
+    message += f"Cloud cover: {cloud_cover}%\n"
+    message += f"Visibility: {visibility_percentage}% clear\n"
+    message += f"Time: {datetime.fromtimestamp(weather_data.get('current_time', 0)).strftime('%Y-%m-%d %H:%M:%S')}"
+
+    try:
+        # Send POST request to ntfy
+        response = requests.post(
+            f"{NTFY_URL}/{NTFY_TOPIC}",
+            data=message.encode(encoding="utf-8"),
+            headers={"Title": "Aurora Visibility Alert", "Priority": "default"},
+        )
+
+        if response.status_code == 200:
+            print(f"Notification sent successfully to {NTFY_TOPIC} topic")
+        else:
+            print(f"Failed to send notification. Status code: {response.status_code}")
+
+    except Exception as e:
+        print(f"Error sending notification: {e}")
+
+
 def main():
     # Check command line arguments
     if len(sys.argv) != 3:
@@ -383,6 +486,9 @@ def main():
             print("Could not retrieve sunrise/sunset times for nighttime check")
     else:
         print("Could not retrieve weather data")
+
+    # Send ntfy notification if aurora visibility conditions are good
+    send_ntfy_notification(interpolated_value, weather_data, original_lat, original_lon)
 
 
 if __name__ == "__main__":
