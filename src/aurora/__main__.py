@@ -477,57 +477,47 @@ def main():
 
     # Check if the aurora value is above the threshold to warrant a weather check
     # Only fetch weather data if aurora value is high enough to potentially make viewing worthwhile
-    weather_data = None
-    if interpolated_value >= MIN_AURORA_THRESHOLD:
-        print(
-            f"Aurora value ({interpolated_value:.2f}) is above threshold ({MIN_AURORA_THRESHOLD}), checking weather conditions..."
-        )
-        # Get weather data using original longitude
-        weather_data = get_weather_data(original_lat, original_lon)
-    else:
+    if interpolated_value < MIN_AURORA_THRESHOLD:
         print(
             f"Aurora value ({interpolated_value:.2f}) is below threshold ({MIN_AURORA_THRESHOLD}), skipping weather check to reduce API calls."
         )
+        sys.exit(0)
 
-    # Determine aurora visibility based on weather conditions
-    if weather_data is not None:
-        cloud_cover = weather_data.get("cloud_cover")
-        sunrise = weather_data.get("sunrise")
-        sunset = weather_data.get("sunset")
-        current_time = weather_data.get("current_time")
+    weather_data = get_weather_data(original_lat, original_lon)
 
-        if cloud_cover is not None:
-            print(f"Cloud cover at target location: {cloud_cover}%")
-        else:
-            print("Could not retrieve cloud cover data")
+    cloud_cover = weather_data.get("cloud_cover")
+    sunrise = weather_data.get("sunrise")
+    sunset = weather_data.get("sunset")
+    current_time = weather_data.get("current_time")
 
-        if sunrise is not None and sunset is not None and current_time is not None:
-            is_dark = is_nighttime(sunrise, sunset, current_time)
-            print(
-                f"Time conditions for aurora: {'Nighttime (dark enough)' if is_dark else 'Daytime (too bright)'}"
-            )
-
-            # Determine if aurora is likely visible
-            if is_dark and cloud_cover is not None:
-                visibility_percentage = 100 - cloud_cover
-                if visibility_percentage > 50:
-                    print(f"Aurora visibility: Good ({visibility_percentage}% clear)")
-                elif 20 < visibility_percentage <= 50:
-                    print(
-                        f"Aurora visibility: Moderate ({visibility_percentage}% clear)"
-                    )
-                elif visibility_percentage <= 20:
-                    print(f"Aurora visibility: Poor ({visibility_percentage}% clear)")
-                else:
-                    print("Aurora visibility: Uncertain due to cloud cover")
-            elif not is_dark:
-                print("Aurora visibility: Poor (not dark enough - daytime conditions)")
-            else:
-                print("Aurora visibility: Uncertain due to weather data")
-        else:
-            print("Could not retrieve sunrise/sunset times for nighttime check")
+    if cloud_cover is not None:
+        print(f"Cloud cover at target location: {cloud_cover}%")
     else:
-        print("Weather data not retrieved due to low aurora value.")
+        print("Could not retrieve cloud cover data")
+
+    if sunrise is not None and sunset is not None and current_time is not None:
+        is_dark = is_nighttime(sunrise, sunset, current_time)
+        print(
+            f"Time conditions for aurora: {'Nighttime (dark enough)' if is_dark else 'Daytime (too bright)'}"
+        )
+
+        # Determine if aurora is likely visible
+        if is_dark and cloud_cover is not None:
+            visibility_percentage = 100 - cloud_cover
+            if visibility_percentage > 50:
+                print(f"Aurora visibility: Good ({visibility_percentage}% clear)")
+            elif 20 < visibility_percentage <= 50:
+                print(f"Aurora visibility: Moderate ({visibility_percentage}% clear)")
+            elif visibility_percentage <= 20:
+                print(f"Aurora visibility: Poor ({visibility_percentage}% clear)")
+            else:
+                print("Aurora visibility: Uncertain due to cloud cover")
+        elif not is_dark:
+            print("Aurora visibility: Poor (not dark enough - daytime conditions)")
+        else:
+            print("Aurora visibility: Uncertain due to weather data")
+    else:
+        print("Could not retrieve sunrise/sunset times for nighttime check")
 
     # Send ntfy notification if aurora visibility conditions are good
     send_ntfy_notification(interpolated_value, weather_data, original_lat, original_lon)
