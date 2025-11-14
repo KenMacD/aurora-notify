@@ -5,13 +5,14 @@ from the ovation_aurora_latest.json file.
 """
 
 import json
+import math
+import os
 import sys
-from typing import List, Tuple, Optional
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
-import os
-import urllib.parse
-import math
+from typing import List, Optional, Tuple
+
 import requests
 from dotenv import load_dotenv
 
@@ -219,26 +220,7 @@ def is_nighttime(sunrise: int, sunset: int, current_time: int) -> bool:
     Returns:
         True if it's nighttime (between sunset and sunrise), False otherwise
     """
-    # The OpenWeatherMap API provides sunrise and sunset for the current day.
-    # If current time is after sunset and before tomorrow's sunrise, it's nighttime.
-    # If current time is before sunset and after today's sunrise, it's daytime.
-
-    # Check if current time is after today's sunset
-    if current_time >= sunset:
-        # If so, it's nighttime until tomorrow's sunrise
-        tomorrow_sunrise = sunrise + 86400  # Add 24 hours to get next day's sunrise
-        if current_time < tomorrow_sunrise:
-            return True
-        # If current time is past tomorrow's sunrise, then sunrise/sunset values
-        # might be for a different timezone context, so we'll default to the other checks
-
-    # Check if current time is before today's sunrise (early morning, still night)
-    if current_time < sunrise:
-        # It's nighttime before today's sunrise
-        return True
-
-    # Otherwise, it's daytime (between sunrise and sunset)
-    return False
+    return not (sunrise <= current_time < sunset)
 
 
 def get_weather_data(lat: float, lon: float) -> Optional[dict]:
